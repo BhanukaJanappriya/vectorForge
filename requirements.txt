@@ -13,5 +13,8 @@ potracer>=0.0.4
 lxml>=5.0
 scour>=0.38
 cairosvg>=2.7
+# Local fallbacks when native Cairo/Inkscape are unavailable (Windows dev): SVG raster + direct PDF/EPS
+resvg-py>=0.2
+pycairo>=1.25
 pikepdf>=8.0
 pyyaml>=6.0
