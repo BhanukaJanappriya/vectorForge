@@ -1,0 +1,29 @@
+{
+  "file": "03_cartoon_outlined.png",
+  "width": 640,
+  "height": 480,
+  "has_alpha": false,
+  "expected_class": "mixed",
+  "palette_hex": [
+    "#c8e6fa",
+    "#3ca050",
+    "#f5cdaa",
+    "#ffffff",
+    "#000000",
+    "#dc322f",
+    "#fac81e",
+    "#f08228"
+  ],
+  "stroke_widths_px": {
+    "outlines": 5,
+    "eyes": 3,
+    "smile": 4
+  },
+  "median_stroke_width_px": null,
+  "stroke_components": null,
+  "ssim_min": 0.85,
+  "max_delta_e": 3.0,
+  "max_mean_delta_e": 2.0,
+  "seed": 1337,
+  "notes": "Fills with black outlines; outlines must stay continuous at junctions"
+}

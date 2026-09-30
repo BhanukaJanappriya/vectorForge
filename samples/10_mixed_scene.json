@@ -1,0 +1,18 @@
+{
+  "file": "10_mixed_scene.png",
+  "width": 640,
+  "height": 480,
+  "has_alpha": false,
+  "expected_class": "mixed",
+  "palette_hex": null,
+  "stroke_widths_px": {
+    "outlines": 4
+  },
+  "median_stroke_width_px": null,
+  "stroke_components": null,
+  "ssim_min": 0.85,
+  "max_delta_e": 3.0,
+  "max_mean_delta_e": 2.0,
+  "seed": 1337,
+  "notes": "Noisy gradient sky + outlined flat shapes"
+}

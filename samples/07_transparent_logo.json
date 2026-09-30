@@ -1,0 +1,20 @@
+{
+  "file": "07_transparent_logo.png",
+  "width": 512,
+  "height": 512,
+  "has_alpha": true,
+  "expected_class": "flat_color",
+  "palette_hex": [
+    "#14285a",
+    "#fac81e",
+    "#dc322f"
+  ],
+  "stroke_widths_px": null,
+  "median_stroke_width_px": null,
+  "stroke_components": null,
+  "ssim_min": 0.9,
+  "max_delta_e": 3.0,
+  "max_mean_delta_e": 2.0,
+  "seed": 1337,
+  "notes": "Transparent bg, true hole in center, 50% alpha red square; no bg fill allowed"
+}

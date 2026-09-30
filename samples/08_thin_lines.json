@@ -1,0 +1,26 @@
+{
+  "file": "08_thin_lines.png",
+  "width": 600,
+  "height": 400,
+  "has_alpha": false,
+  "expected_class": "line_art",
+  "palette_hex": [
+    "#ffffff",
+    "#000000",
+    "#268bd2"
+  ],
+  "stroke_widths_px": {
+    "grid": 1,
+    "diagonal_1": 1,
+    "diagonal_2": 2,
+    "diagonal_3": 3,
+    "arcs": 1
+  },
+  "median_stroke_width_px": 1,
+  "stroke_components": null,
+  "ssim_min": 0.85,
+  "max_delta_e": 3.0,
+  "max_mean_delta_e": 2.0,
+  "seed": 1337,
+  "notes": "1-3px aliased lines (12 vertical grid lines), shallow diagonals (staircase), concentric arcs"
+}

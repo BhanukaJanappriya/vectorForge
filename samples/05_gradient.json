@@ -1,0 +1,16 @@
+{
+  "file": "05_gradient.png",
+  "width": 512,
+  "height": 512,
+  "has_alpha": false,
+  "expected_class": "mixed",
+  "palette_hex": null,
+  "stroke_widths_px": null,
+  "median_stroke_width_px": null,
+  "stroke_components": null,
+  "ssim_min": 0.85,
+  "max_delta_e": 3.0,
+  "max_mean_delta_e": 2.0,
+  "seed": 1337,
+  "notes": "Linear+radial gradients (no exact palette). Stress test for banding; SSIM only"
+}

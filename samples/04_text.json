@@ -1,0 +1,21 @@
+{
+  "file": "04_text.png",
+  "width": 800,
+  "height": 300,
+  "has_alpha": false,
+  "expected_class": "flat_color",
+  "palette_hex": [
+    "#ffffff",
+    "#14285a",
+    "#000000",
+    "#dc322f"
+  ],
+  "stroke_widths_px": null,
+  "median_stroke_width_px": null,
+  "stroke_components": null,
+  "ssim_min": 0.9,
+  "max_delta_e": 3.0,
+  "max_mean_delta_e": 2.0,
+  "seed": 1337,
+  "notes": "Glyph counters (holes), small 14-20px text"
+}

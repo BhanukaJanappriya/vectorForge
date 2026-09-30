@@ -1,0 +1,25 @@
+{
+  "file": "02_lineart_black.png",
+  "width": 600,
+  "height": 600,
+  "has_alpha": false,
+  "expected_class": "line_art",
+  "palette_hex": [
+    "#ffffff",
+    "#000000"
+  ],
+  "stroke_widths_px": {
+    "circle": 6,
+    "cross": 6,
+    "curve": 3,
+    "arc": 10,
+    "triangle": 4
+  },
+  "median_stroke_width_px": 6,
+  "stroke_components": 3,
+  "ssim_min": 0.85,
+  "max_delta_e": 3.0,
+  "max_mean_delta_e": 2.0,
+  "seed": 1337,
+  "notes": "Strokes 3-10px, X/T junctions, sharp polygon corners; test centerline + outline"
+}

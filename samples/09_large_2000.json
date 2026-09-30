@@ -1,0 +1,24 @@
+{
+  "file": "09_large_2000.png",
+  "width": 2000,
+  "height": 2000,
+  "has_alpha": false,
+  "expected_class": "flat_color",
+  "palette_hex": [
+    "#ffffff",
+    "#dc322f",
+    "#268bd2",
+    "#fac81e",
+    "#3ca050",
+    "#14285a",
+    "#f08228"
+  ],
+  "stroke_widths_px": null,
+  "median_stroke_width_px": null,
+  "stroke_components": null,
+  "ssim_min": 0.9,
+  "max_delta_e": 3.0,
+  "max_mean_delta_e": 2.0,
+  "seed": 1337,
+  "notes": "2000x2000 performance test: must finish < 10 s"
+}

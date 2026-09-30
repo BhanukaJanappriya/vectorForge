@@ -1,0 +1,21 @@
+{
+  "file": "01_logo_4color.png",
+  "width": 512,
+  "height": 512,
+  "has_alpha": false,
+  "expected_class": "flat_color",
+  "palette_hex": [
+    "#ffffff",
+    "#dc322f",
+    "#268bd2",
+    "#fac81e"
+  ],
+  "stroke_widths_px": null,
+  "median_stroke_width_px": null,
+  "stroke_components": null,
+  "ssim_min": 0.9,
+  "max_delta_e": 3.0,
+  "max_mean_delta_e": 2.0,
+  "seed": 1337,
+  "notes": "4 flat colors, AA edges, curves + sharp triangle corners"
+}
