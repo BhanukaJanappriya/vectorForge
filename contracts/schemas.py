@@ -607,7 +607,8 @@ class QualityReport(_Contract):
       (median in LAB) color of its palette region, where the region's pixels are taken from the
       ORIGINAL source image resampled nearest-neighbour onto the processing grid (not pre.image,
       so preprocessing color shifts are caught). Line layers compare against LineMap-covered
-      pixels when a LineMap exists. A palette region holding >= 0.5% of opaque pixels that no
+      pixels when a LineMap exists, restricted to their own palette region when palette_index
+      is set (a LineMap may hold strokes of several colors). A palette region holding >= 0.5% of opaque pixels that no
       layer represents is scored with the color preview.png renders there. Background layers count.
     * gap_ratio: render preview.png over transparency; among source pixels with alpha >= 128
       after a 1-px erosion (so silhouette anti-aliasing is ignored), the fraction whose preview
@@ -626,6 +627,20 @@ class QualityReport(_Contract):
     file_size_bytes: int = Field(ge=0)
     processing_time_s: float = Field(ge=0)
     checks: list[MetricCheck]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_serialized_passed(cls, data: Any) -> Any:
+        """Allow round-tripping a serialized report: 'passed' is derived, so it is dropped on input
+        after checking it agrees with the checks."""
+        if isinstance(data, dict) and "passed" in data:
+            data = dict(data)
+            claimed = data.pop("passed")
+            checks = data.get("checks", [])
+            actual = all((c["passed"] if isinstance(c, dict) else c.passed) for c in checks)
+            if claimed != actual:
+                raise ValueError(f"passed={claimed} contradicts checks (expected {actual})")
+        return data
 
     @computed_field  # type: ignore[prop-decorator]
     @property

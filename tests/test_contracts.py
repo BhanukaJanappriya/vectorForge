@@ -288,6 +288,11 @@ def test_metric_check_consistency_and_report_passed() -> None:
     assert QualityReport(checks=[ok], **kw).passed
     report = QualityReport(checks=[ok, bad], **kw)
     assert not report.passed and report.model_dump()["passed"] is False
+    assert QualityReport.model_validate_json(report.model_dump_json()) == report
+    tampered = report.model_dump()
+    tampered["passed"] = True
+    with pytest.raises(ValidationError, match="contradicts"):
+        QualityReport.model_validate(tampered)
 
 
 def test_thresholds() -> None:

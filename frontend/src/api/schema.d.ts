@@ -341,7 +341,8 @@ export interface components {
          *       (median in LAB) color of its palette region, where the region's pixels are taken from the
          *       ORIGINAL source image resampled nearest-neighbour onto the processing grid (not pre.image,
          *       so preprocessing color shifts are caught). Line layers compare against LineMap-covered
-         *       pixels when a LineMap exists. A palette region holding >= 0.5% of opaque pixels that no
+         *       pixels when a LineMap exists, restricted to their own palette region when palette_index
+         *       is set (a LineMap may hold strokes of several colors). A palette region holding >= 0.5% of opaque pixels that no
          *       layer represents is scored with the color preview.png renders there. Background layers count.
          *     * gap_ratio: render preview.png over transparency; among source pixels with alpha >= 128
          *       after a 1-px erosion (so silhouette anti-aliasing is ignored), the fraction whose preview
