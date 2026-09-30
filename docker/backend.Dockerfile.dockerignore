@@ -1,0 +1,10 @@
+# Only what the backend image copies (requirements, contracts, pipeline, eval, api).
+**
+!requirements.txt
+!contracts/**
+!pipeline/**
+!eval/**
+!api/**
+**/__pycache__
+**/*.pyc
+eval/reports
