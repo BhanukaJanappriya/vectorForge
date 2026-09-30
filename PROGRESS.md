@@ -10,28 +10,30 @@ Contract version: **1.0.0**. Last updated: 2026-09-30.
 | 1 | line-extractor | pipeline/lines.py | ✅ Done | 22 + 1 slow, 98% cov | 02: 3/3 strokes, junctions intact; 08: 12/12 grid lines; 03 outline IoU 0.913; 0.27–0.46 s @ 4 MP | Width estimate runs +1 px on odd widths (within tolerance) |
 | 1 | frontend-builder | frontend/ | ✅ Done | Vitest 88, Playwright 6 (1440 + 375 px) | 89% statements; JS 57.9 kB gzip | Runs against MSW mock of the OpenAPI spec |
 | 1 | qa-evaluator | eval/ | ✅ Done | 96, 99% cov | all 4 corruption self-checks caught; Sharma CIEDE2000 pairs to 1e-4; full run ~10 s | vectorize/assemble/export use eval stand-ins until Phase 2 |
-| 2 | vectorizer | pipeline/vectorize.py | ⏳ Next | — | — | |
-| 2 | svg-exporter | pipeline/assemble.py, pipeline/export.py | ⏳ Next | — | — | |
-| 2 | backend-devops | api/, pipeline/runner.py, Docker | ⏳ Next | — | — | |
+| 2 | vectorizer | pipeline/vectorize.py | ✅ Done | 38 + 11 slow, 98% cov | 10/10 eval PASS, gap 0; 35–97% fewer nodes than vtracer at equal or better SSIM; 09 in ~0.95 s | OpenCV contours + own Bézier fitter (vtracer segfaults in-process on Python 3.14) |
+| 2 | svg-exporter | pipeline/assemble.py, pipeline/export.py | ✅ Done | 90 + 4 slow (6 Docker-only skipped), 99% cov | SVG 35% smaller after optimization, render SSIM ≥ 0.999; .ai OCG layers = layer names; assemble+export 0.28 s on 09 | Local fallbacks: resvg preview, direct PDF writer, pycairo EPS |
+| 2 | backend-devops | api/, pipeline/runner.py, Docker, CI | ✅ Done (Docker not yet run) | 82, 98% cov | app.openapi() equals api/openapi.yaml; all 10 samples convert/poll/download through a live server | `docker compose up` unverified: Docker Desktop was off |
 | 3 | all | integration & tuning loop | ⏳ | — | — | |
 
-## Results: `python -m eval run --all` (2026-09-30, end of Phase 1)
+## Results: `python -m eval run --all` (2026-09-30, end of Phase 2)
 
-Real stages: load_image, preprocess, classify, quantize, extract_lines. **Vectorize, assemble and export are eval
-stand-ins (pixel-run rectangles)**, so SSIM and node counts below measure the upstream stages, not final output.
+All 8 stages real on every sample (flat-color samples skip line extraction by design). Local export routes
+(resvg preview, direct PDF/EPS writer) because Cairo and Inkscape are not installed on the dev machine.
 
-| Sample | Class | Colors | SSIM | Mean ΔE | Max ΔE | Gap | Pass |
-|---|---|---|---|---|---|---|---|
-| 01_logo_4color | flat_color ✓ | 4/4 | 0.9962 | 0.00 | 0.00 | 0 | ✅ |
-| 02_lineart_black | line_art ✓ | 2/2 | 0.9888 | 0.00 | 0.00 | 0 | ✅ |
-| 03_cartoon_outlined | mixed ✓ | 8/8 | 0.9945 | 0.00 | 0.00 | 0 | ✅ |
-| 04_text | flat_color ✓ | 4/4 | 0.9786 | 0.59 | 2.34 | 0 | ✅ |
-| 05_gradient | mixed ✓ | 19 | 0.9790 | 0.13 | 0.49 | 0 | ✅ |
-| 06_jpeg_artifacts | flat_color ✓ | 4/4 | 0.9810 | 0.00 | 0.00 | 0 | ✅ |
-| 07_transparent_logo | flat_color ✓ | 3/3 | 0.9894 | 0.00 | 0.00 | 0 | ✅ |
-| 08_thin_lines | line_art ✓ | 3/3 | 1.0000 | 0.00 | 0.00 | 0 | ✅ |
-| 09_large_2000 | flat_color ✓ | 7/7 | 0.9890 | 0.00 | 0.00 | 0 | ✅ |
-| 10_mixed_scene | mixed ✓ | 9 | 0.9279 | 0.07 | 0.21 | 0 | ✅ |
+| Sample | Class | Colors | SSIM | Mean ΔE | Max ΔE | Gap | Nodes | SVG size | Time | Pass |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 01_logo_4color | flat_color ✓ | 4/4 | 0.9960 | 0.00 | 0.00 | 0 | 36 | 1.9 KB | 0.27 s | ✅ |
+| 02_lineart_black | line_art ✓ | 2/2 | 0.9893 | 0.00 | 0.00 | 0 | 104 | 2.7 KB | 0.21 s | ✅ |
+| 03_cartoon_outlined | mixed ✓ | 8/8 | 0.9948 | 0.00 | 0.00 | 0 | 125 | 4.4 KB | 0.86 s | ✅ |
+| 04_text | flat_color ✓ | 4/4 | 0.9784 | 0.59 | 2.34 | 0 | 779 | 9.7 KB | 0.52 s | ✅ |
+| 05_gradient | mixed ✓ | 19 | 0.9810 | 0.13 | 0.49 | 0 | 616 | 10.4 KB | 0.47 s | ✅ |
+| 06_jpeg_artifacts | flat_color ✓ | 4/4 | 0.9831 | 0.00 | 0.00 | 0 | 89 | 2.5 KB | 0.19 s | ✅ |
+| 07_transparent_logo | flat_color ✓ | 3/3 | 0.9845 | 0.00 | 0.00 | 0 | 46 | 2.0 KB | 0.12 s | ✅ |
+| 08_thin_lines | line_art ✓ | 3/3 | 0.9611 | 0.00 | 0.00 | 0 | 178 | 4.3 KB | 0.42 s | ✅ |
+| 09_large_2000 | flat_color ✓ | 7/7 | 0.9899 | 0.00 | 0.00 | 0 | 1332 | 25.4 KB | 2.00 s | ✅ |
+| 10_mixed_scene | mixed ✓ | 9 | 0.9319 | 0.07 | 0.21 | 0 | 5417 | 42.6 KB | 1.42 s | ✅ |
+
+Corruption self-check: shifted colors, missing layer, seam and blur each fail on the intended metric.
 
 ## Decisions log
 
@@ -53,14 +55,18 @@ stand-ins (pixel-run rectangles)**, so SSIM and node counts below measure the up
 | D14 | `QualityThresholds.MIN_ALPHA_IOU = 0.98` (Phase 1) | Proposed by qa-evaluator; alpha IoU had no threshold. |
 | D15 | ΔE is measured against ORIGINAL source pixels, not `pre.image` | Using `pre.image` hid the preprocess color-blending bug on 08. |
 | D16 | Timing tests are `@pytest.mark.slow`, excluded from `pytest -q`, run with `pytest -m slow` | This laptop throttles under sustained load; in-suite timing was flaky. The eval time check stays authoritative. |
+| D17 | Local export fallbacks: resvg-py for preview.png, direct pikepdf PDF writer for .ai, pycairo for EPS | No Cairo DLL, no Inkscape and no admin rights on the dev machine. Docker uses CairoSVG + Inkscape; every fallback is recorded in `ExportBundle.warnings`. |
+| D18 | Line layers are scored against LineMap ∩ their own palette region | A LineMap can hold several stroke colors (08 black + blue); the old rule gave a false ΔE 47. |
+| D19 | `QualityReport` accepts a serialized `passed` on input and validates it | Lets JobResponse JSON round-trip through the contract models. |
+| D20 | Vectorizer uses OpenCV contours + own Bézier fitting instead of vtracer/potrace | 20x faster on 09, exact pixel-edge contours, and vtracer crashes in-process on Python 3.14. vtracer stays a dependency for the node-count benchmark. |
 
 ## Open questions / risks
 
 - **p95 per-pixel ΔE** (diagnostic column in eval) catches merged colors that the region-median ΔE misses,
   but is non-zero on gradients/JPEG/noise (05: 6.08, 06: 4.77, 10: 3.04). Decide in Phase 3 whether it becomes
   a class-dependent contract metric.
-- Sample 05 (pure gradient) may not reach SSIM 0.85 with real flat-fill vectorization at a sane node count.
-- Centerline tracing of 1-px aliased lines (sample 08) is the highest Phase 2 risk.
+- `docker compose up` has not been run yet (Docker Desktop off). The Docker-only tests (real CairoSVG, Inkscape layers, Ghostscript EPS) are still pending.
+- Timing tests pass in isolation but can fail in long runs on this laptop because of thermal throttling (CPU ~5x slower after ~2 s of sustained load).
 - Eval time checks can fail spuriously when the dev machine is low on RAM (seen once on 10: quantize 2.0 s vs 0.5 s solo).
 - The native Cairo DLL is missing on the Windows dev machine (`import cairosvg` fails). svg-exporter needs it
   locally (GTK3 runtime) or must test in Docker.

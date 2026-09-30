@@ -13,10 +13,11 @@ Convert raster images (PNG/JPG) into clean, layered vector graphics: **SVG**, **
 | Contracts (`contracts/`) | ✅ Done | `python -m pytest -q tests/test_contracts.py` |
 | API spec (`api/openapi.yaml`) | ✅ Done | `python scripts/export_openapi.py --check` |
 | Sample images + ground truth (`samples/`) | ✅ Done | `python -m pytest -q tests/test_samples.py` |
-| Pipeline stages (`pipeline/`) | preprocess, classify, quantize, lines ✅; vectorize, assemble, export ⏳ Phase 2 | `python -m pytest -q tests/test_<stage>.py` |
+| Pipeline stages (`pipeline/`) | ✅ Done (all 8 stages) | `python -m eval run --all` |
 | Evaluation CLI (`eval/`) | ✅ Done | `python -m eval run --all` |
-| API + Docker (`api/`, `docker-compose.yml`) | ⏳ Phase 2 | `docker compose up` |
-| Frontend (`frontend/`, mocked API) | ✅ Done | `npm run build && npx playwright test` |
+| API + job worker (`api/`) | ✅ Done, verified locally | see "Run the app locally" |
+| Docker (`docker/`, `docker-compose.yml`) | ⚠️ Written, not yet run | `docker compose up --build` |
+| Frontend (`frontend/`) | ✅ Done | `cd frontend && npm test && npm run test:e2e` |
 
 Live per-module status is in [PROGRESS.md](PROGRESS.md).
 
@@ -77,7 +78,17 @@ Expected output: `core dependencies OK` and `cairo OK`.
 python -m pytest -q
 ```
 
-Expected output: every test passes (currently `390 passed, 1 skipped`). Timing tests are marked `slow` and run separately with `python -m pytest -m slow` on an otherwise idle machine. A failure names the broken rule. For example, a
+Expected output: every test passes (currently `602 passed, 7 skipped`). The skipped tests need CairoSVG,
+Inkscape or Ghostscript and run inside Docker.
+
+Timing tests are marked `slow` and excluded by default. Run them on an otherwise idle machine:
+
+```bash
+python -m pytest -q -m slow
+```
+
+On laptops that throttle under sustained load, a long run can push individual timings over budget. If one
+fails, re-run it alone, for example `python -m pytest -q -m slow tests/test_quantize.py`. A failure names the broken rule. For example, a
 contract validator rejects inconsistent data, or a sample no longer matches its ground truth.
 
 Check test coverage (it must stay at or above 80%):
@@ -119,10 +130,10 @@ Expected output: `All checks passed!`
 python -m eval run --all
 ```
 
-This prints a table with one row per sample (SSIM, mean/max ΔE, gap ratio, node count, file size, time, PASS/FAIL)
-and writes an HTML report with side-by-side and diff images to `eval/reports/<timestamp>/report.html`.
-Stages that are not built yet show as `SKIPPED (stage missing)`. The program is working when every row says
-**PASS** against the thresholds below.
+This runs every sample through the real pipeline and prints one row per sample (SSIM, mean/max ΔE,
+gap ratio, node count, file size, time, PASS/FAIL). It also writes an HTML report with side-by-side and diff
+images to `eval/reports/<timestamp>/report.html`. The program is working when every row says **PASS**
+against the thresholds below. Use `python -m eval run 01` for a single sample.
 
 | Metric | Threshold |
 |---|---|
@@ -131,7 +142,40 @@ Stages that are not built yet show as `SKIPPED (stage missing)`. The program is 
 | Gap ratio (hairline gaps) | ≤ 0.0005 |
 | Time for 2000×2000 | < 10 s |
 
-### 7. Run the full app (after Phase 2)
+The last lines of the output show a self-check: deliberately corrupted outputs (shifted colors, a missing layer,
+a seam, a blurred preview) must each fail on the right metric and show `OK`.
+
+### 7. Run the app locally (without Docker)
+
+Terminal 1, the API on port 8000:
+
+```bash
+python -m uvicorn api.main:app --port 8000
+```
+
+Terminal 2, the frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open http://localhost:5173 and convert `samples/01_logo_4color.png`. Without Cairo and Inkscape on the machine,
+the export uses built-in fallbacks (resvg for the preview, a direct PDF/EPS writer). The job's warnings say so.
+
+Check the API directly:
+
+```bash
+curl http://localhost:8000/api/v1/health
+curl -F "file=@samples/01_logo_4color.png" http://localhost:8000/api/v1/convert
+curl http://localhost:8000/api/v1/jobs/<job_id>
+curl -o output.svg "http://localhost:8000/api/v1/jobs/<job_id>/files/svg?download=true"
+```
+
+A finished job has `"status": "succeeded"` and `result.quality.passed: true`.
+
+### 8. Run the full app with Docker
 
 ```bash
 docker compose up --build
@@ -157,3 +201,6 @@ curl -F "file=@samples/01_logo_4color.png" http://localhost:8080/api/v1/convert
 curl http://localhost:8080/api/v1/jobs/<job_id>
 curl -o output.svg "http://localhost:8080/api/v1/jobs/<job_id>/files/svg?download=true"
 ```
+
+> The Docker setup has been validated with `docker compose config` but not yet built and run. Report any build
+> problem as an issue.
