@@ -1,0 +1,33 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# runtime job data
+data/
+jobs/
+outputs/
+
+# frontend
+node_modules/
+frontend/dist/
+playwright-report/
+test-results/
+
+.env
+.DS_Store
+.worktrees/
+
+# eval output
+eval/reports/
+
+# local Claude Code settings
+.claude/settings.local.json

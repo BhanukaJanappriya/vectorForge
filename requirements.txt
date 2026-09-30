@@ -1,0 +1,17 @@
+# Runtime (Python 3.11+). System deps (Docker image): cairo, inkscape, potrace, ghostscript.
+numpy>=1.26
+pillow>=10.3
+opencv-python-headless>=4.9
+scikit-image>=0.22
+scikit-learn>=1.4
+pydantic>=2.6
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9
+vtracer>=0.6
+potracer>=0.0.4
+lxml>=5.0
+scour>=0.38
+cairosvg>=2.7
+pikepdf>=8.0
+pyyaml>=6.0

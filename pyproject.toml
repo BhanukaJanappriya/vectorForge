@@ -1,0 +1,25 @@
+# Tool configuration only. Dependencies live in requirements.txt / requirements-dev.txt.
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = [
+    "slow: long-running (e.g. 2000x2000 performance) tests",
+    "golden: sample-image regression tests against samples/*.json ground truth",
+]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+plugins = ["pydantic.mypy"]
