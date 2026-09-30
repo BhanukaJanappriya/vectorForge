@@ -197,7 +197,9 @@ def region_delta_es(
     (e.g. interpolated upscaling turning 1-px black lines gray).
 
     Fill/background layers use their palette region (``label_map == index``); stroke/line
-    layers use LineMap-covered pixels when a LineMap exists. Only opaque pixels count.
+    layers use LineMap-covered pixels when a LineMap exists, restricted to their own palette
+    region (``mask & label_map == palette_index``) when palette_index is set; if that
+    intersection is empty the palette region alone is used. Only opaque pixels count.
     Layers whose region is empty are skipped.
 
     Uncovered regions: if ``preview_rgb`` (source resolution) is given, every palette region
@@ -217,7 +219,12 @@ def region_delta_es(
         if is_line and line_map is not None and line_map.mask.shape == opaque.shape:
             region = np.asarray(line_map.mask) & opaque
             if layer.palette_index is not None:
-                represented.add(layer.palette_index)
+                # A LineMap may hold strokes of several colors: restrict to this layer's palette
+                # region; if the two do not overlap, fall back to the palette region alone.
+                index = layer.palette_index
+                represented.add(index)
+                own = (labels == index) & opaque if labels.shape == opaque.shape else np.zeros_like(opaque)
+                region = region & own if np.any(region & own) else own
         else:
             index = _layer_palette_index(layer, palette)
             if index is None or labels.shape != opaque.shape:

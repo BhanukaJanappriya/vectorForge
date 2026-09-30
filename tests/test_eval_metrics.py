@@ -457,3 +457,76 @@ def test_p95_pixel_delta_e_diagnostic(monkeypatch: pytest.MonkeyPatch) -> None:
     assert ev.pixel_delta_e_p95(img, alpha, img, alpha) == 0.0  # no interior pixels
     monkeypatch.setattr(ev, "P95_SAMPLE_CAP", 100)
     assert ev.pixel_delta_e_p95(merged, np.full((40, 40), 255, np.uint8), img, None) > 30
+
+
+def _two_color_line_art() -> tuple:
+    """White canvas with a black and a blue 2-px stroke; one LineMap covering both strokes."""
+    from contracts.schemas import LineMap, Palette, PaletteColor, rgb_to_hex
+
+    pre = make_preprocess_result(64)
+    image = np.full((64, 64, 3), 255, np.uint8)
+    image[10:12, 5:60] = (0, 0, 0)
+    image[40:42, 5:60] = (38, 139, 210)
+    pre = pre.model_copy(update={"image": image})
+    labels = np.zeros((64, 64), np.int32)
+    labels[10:12, 5:60] = 1
+    labels[40:42, 5:60] = 2
+    rgbs = [(255, 255, 255), (0, 0, 0), (38, 139, 210)]
+    counts = np.bincount(labels.ravel(), minlength=3)
+    lab = ev.rgb_to_lab(np.array(rgbs, np.uint8))
+    colors = [
+        PaletteColor(index=i, rgb=c, lab=tuple(lab[i]), hex=rgb_to_hex(c), pixel_count=int(counts[i]))
+        for i, c in enumerate(rgbs)
+    ]
+    palette = Palette(colors=colors, label_map=labels)
+    mask = labels > 0
+    skeleton = np.zeros_like(mask)
+    skeleton[10, 5:60] = skeleton[40, 5:60] = True
+    line_map = LineMap(
+        mask=mask,
+        skeleton=skeleton,
+        width_map=np.where(skeleton, 2.0, 0.0).astype(np.float32),
+        median_stroke_width=2.0,
+        color_rgb=(0, 0, 0),
+    )
+    doc = make_vector_document(64)
+    bg = doc.layers[0]
+
+    def line(z: int, hex_: str, index: int | None) -> VectorLayer:
+        return VectorLayer(
+            id=f"line_{z + 1}_{hex_[1:].upper()}",
+            name=f"line_{z + 1}_#{hex_[1:].upper()}",
+            role="line",
+            color_hex=hex_,
+            paths=["M5 11L60 11"],
+            z_order=z,
+            is_stroke=True,
+            stroke_width=2.0,
+            palette_index=index,
+        )
+
+    return pre, palette, line_map, doc, bg, line
+
+
+def test_multi_color_line_layers_use_own_palette_region() -> None:
+    pre, palette, line_map, doc, bg, line = _two_color_line_art()
+    layers = [bg, line(1, "#000000", 1), line(2, "#268bd2", 2)]
+    regions = ev.region_delta_es(pre, palette, line_map, doc.model_copy(update={"layers": layers}))
+    by_id = {r.layer_id: r for r in regions}
+    assert by_id["line_2_000000"].delta_e == pytest.approx(0.0, abs=1e-6)
+    assert by_id["line_3_268BD2"].delta_e == pytest.approx(0.0, abs=1e-6)
+    assert by_id["line_3_268BD2"].pixels == 110  # blue stroke only, not the whole LineMap
+    # Wrong color on a line layer still fails.
+    wrong = [bg, line(1, "#000000", 1), line(2, "#dc322f", 2)]
+    regions = ev.region_delta_es(pre, palette, line_map, doc.model_copy(update={"layers": wrong}))
+    assert max(r.delta_e for r in regions) > QualityThresholds.MAX_DELTA_E
+
+
+def test_line_layer_region_fallbacks() -> None:
+    pre, palette, line_map, doc, bg, line = _two_color_line_art()
+    # palette_index points at a region the LineMap does not cover -> palette region alone.
+    regions = ev.region_delta_es(pre, palette, line_map, doc.model_copy(update={"layers": [line(1, "#ffffff", 0)]}))
+    assert regions[0].pixels == 64 * 64 - 220 and regions[0].delta_e == pytest.approx(0.0, abs=1e-6)
+    # palette_index None -> whole LineMap (legacy behaviour): median of 110 black + 110 blue pixels.
+    regions = ev.region_delta_es(pre, palette, line_map, doc.model_copy(update={"layers": [line(1, "#000000", None)]}))
+    assert regions[0].pixels == 220 and regions[0].palette_index is None
