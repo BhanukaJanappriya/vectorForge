@@ -13,10 +13,10 @@ Convert raster images (PNG/JPG) into clean, layered vector graphics: **SVG**, **
 | Contracts (`contracts/`) | ✅ Done | `python -m pytest -q tests/test_contracts.py` |
 | API spec (`api/openapi.yaml`) | ✅ Done | `python scripts/export_openapi.py --check` |
 | Sample images + ground truth (`samples/`) | ✅ Done | `python -m pytest -q tests/test_samples.py` |
-| Pipeline stages (`pipeline/`) | ⏳ Phase 1–2 | `python -m pytest -q tests/test_<stage>.py` |
-| Evaluation CLI (`eval/`) | ⏳ Phase 1 | `python -m eval run --all` |
+| Pipeline stages (`pipeline/`) | preprocess, classify, quantize, lines ✅; vectorize, assemble, export ⏳ Phase 2 | `python -m pytest -q tests/test_<stage>.py` |
+| Evaluation CLI (`eval/`) | ✅ Done | `python -m eval run --all` |
 | API + Docker (`api/`, `docker-compose.yml`) | ⏳ Phase 2 | `docker compose up` |
-| Frontend (`frontend/`) | ⏳ Phase 1 | `npm run build && npx playwright test` |
+| Frontend (`frontend/`, mocked API) | ✅ Done | `npm run build && npx playwright test` |
 
 Live per-module status is in [PROGRESS.md](PROGRESS.md).
 
@@ -77,7 +77,7 @@ Expected output: `core dependencies OK` and `cairo OK`.
 python -m pytest -q
 ```
 
-Expected output: every test passes (currently `55 passed`). A failure names the broken rule. For example, a
+Expected output: every test passes (currently `390 passed, 1 skipped`). Timing tests are marked `slow` and run separately with `python -m pytest -m slow` on an otherwise idle machine. A failure names the broken rule. For example, a
 contract validator rejects inconsistent data, or a sample no longer matches its ground truth.
 
 Check test coverage (it must stay at or above 80%):
@@ -113,7 +113,7 @@ python -m ruff check contracts scripts samples tests pipeline eval
 
 Expected output: `All checks passed!`
 
-### 6. Measure conversion quality (after Phase 1)
+### 6. Measure conversion quality
 
 ```bash
 python -m eval run --all
