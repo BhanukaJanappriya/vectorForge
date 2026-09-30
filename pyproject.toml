@@ -3,6 +3,8 @@
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+# Timing tests are marked slow and run separately on a quiet machine: python -m pytest -m slow
+addopts = "-m 'not slow'"
 markers = [
     "slow: long-running (e.g. 2000x2000 performance) tests",
     "golden: sample-image regression tests against samples/*.json ground truth",
