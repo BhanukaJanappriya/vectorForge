@@ -1,0 +1,685 @@
+openapi: 3.1.0
+info:
+  title: VectorForge API
+  version: 1.0.0
+  description: Raster (PNG/JPG) to vector (SVG/AI/EPS) conversion. Generated from contracts/api.py --
+    do not edit by hand.
+paths:
+  /api/v1/health:
+    get:
+      operationId: getHealth
+      summary: Liveness + available external tools
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /api/v1/config:
+    get:
+      operationId: getConfig
+      summary: Default settings and upload limits (drives the UI form)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigResponse'
+  /api/v1/convert:
+    post:
+      operationId: convert
+      summary: Upload an image and start a conversion job
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: PNG or JPEG, <= 20971520 bytes
+                settings:
+                  type: string
+                  contentMediaType: application/json
+                  description: JSON-encoded Settings; omitted fields use defaults
+            encoding:
+              settings:
+                contentType: application/json
+      responses:
+        '202':
+          description: Job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobResponse'
+        '413':
+          description: File too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: Unsupported media type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Invalid settings or undecodable image
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{job_id}/rerun:
+    parameters:
+    - &id001
+      name: job_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    post:
+      operationId: rerunJob
+      summary: Start a new job from the same upload with new settings (palette edit/merge)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RerunRequest'
+      responses:
+        '202':
+          description: New job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobResponse'
+        '404':
+          description: Unknown or expired job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Invalid settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{job_id}:
+    parameters:
+    - *id001
+    get:
+      operationId: getJob
+      summary: Poll job status/result
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobResponse'
+        '404':
+          description: Unknown job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      operationId: deleteJob
+      summary: Delete a job and its files
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          description: Unknown job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{job_id}/files/{kind}:
+    parameters:
+    - *id001
+    - name: kind
+      in: path
+      required: true
+      schema:
+        type: string
+        enum:
+        - original
+        - svg
+        - ai
+        - eps
+        - png
+    - name: download
+      in: query
+      required: false
+      schema:
+        type: boolean
+        default: false
+      description: 'Send Content-Disposition: attachment'
+    get:
+      operationId: getJobFile
+      summary: Download an input/output file
+      responses:
+        '200':
+          description: File contents
+          content:
+            image/svg+xml:
+              schema:
+                type: string
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            application/postscript:
+              schema:
+                type: string
+                format: binary
+            application/illustrator:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Unknown job, or file not produced / not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    ConfigResponse:
+      additionalProperties: false
+      properties:
+        defaults:
+          $ref: '#/components/schemas/Settings'
+        limits:
+          $ref: '#/components/schemas/Limits'
+      required:
+      - defaults
+      - limits
+      title: ConfigResponse
+      type: object
+    DetailLevel:
+      enum:
+      - low
+      - medium
+      - high
+      title: DetailLevel
+      type: string
+    ErrorDetail:
+      additionalProperties: false
+      properties:
+        code:
+          description: Machine-readable, e.g. invalid_image, stage_failed, too_large.
+          title: Code
+          type: string
+        message:
+          title: Message
+          type: string
+        stage:
+          anyOf:
+          - $ref: '#/components/schemas/PipelineStage'
+          - type: 'null'
+          default: null
+      required:
+      - code
+      - message
+      title: ErrorDetail
+      type: object
+    ErrorResponse:
+      type: object
+      required:
+      - error
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorDetail'
+      title: ErrorResponse
+    FileKind:
+      enum:
+      - original
+      - svg
+      - ai
+      - eps
+      - png
+      title: FileKind
+      type: string
+    HealthResponse:
+      additionalProperties: false
+      properties:
+        status:
+          default: ok
+          title: Status
+          type: string
+        version:
+          title: Version
+          type: string
+        schema_version:
+          default: 1.0.0
+          title: Schema Version
+          type: string
+        capabilities:
+          additionalProperties:
+            type: boolean
+          description: 'e.g. {''inkscape'': true, ''vtracer'': true, ''potrace'': false}'
+          title: Capabilities
+          type: object
+      required:
+      - version
+      - capabilities
+      title: HealthResponse
+      type: object
+    ImageClass:
+      additionalProperties: false
+      properties:
+        label:
+          $ref: '#/components/schemas/ImageClassLabel'
+        confidence:
+          maximum: 1
+          minimum: 0
+          title: Confidence
+          type: number
+        forced:
+          default: false
+          description: True when Settings.mode overrode auto-detection.
+          title: Forced
+          type: boolean
+        features:
+          additionalProperties:
+            type: number
+          description: Diagnostic features used to decide.
+          title: Features
+          type: object
+      required:
+      - label
+      - confidence
+      title: ImageClass
+      type: object
+    ImageClassLabel:
+      enum:
+      - line_art
+      - flat_color
+      - mixed
+      title: ImageClassLabel
+      type: string
+    JobFile:
+      additionalProperties: false
+      properties:
+        kind:
+          $ref: '#/components/schemas/FileKind'
+        url:
+          description: Relative URL, e.g. /api/v1/jobs/{id}/files/svg
+          title: Url
+          type: string
+        media_type:
+          title: Media Type
+          type: string
+        size_bytes:
+          minimum: 0
+          title: Size Bytes
+          type: integer
+      required:
+      - kind
+      - url
+      - media_type
+      - size_bytes
+      title: JobFile
+      type: object
+    JobResponse:
+      additionalProperties: false
+      properties:
+        job_id:
+          title: Job Id
+          type: string
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        stage:
+          $ref: '#/components/schemas/PipelineStage'
+        progress:
+          maximum: 1
+          minimum: 0
+          title: Progress
+          type: number
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+        expires_at:
+          description: When the job and its files will be deleted.
+          format: date-time
+          title: Expires At
+          type: string
+        filename:
+          title: Filename
+          type: string
+        settings:
+          $ref: '#/components/schemas/Settings'
+        source_job_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          description: Set when this job is a re-run of another job.
+          title: Source Job Id
+        result:
+          anyOf:
+          - $ref: '#/components/schemas/JobResult'
+          - type: 'null'
+          default: null
+        error:
+          anyOf:
+          - $ref: '#/components/schemas/ErrorDetail'
+          - type: 'null'
+          default: null
+      required:
+      - job_id
+      - status
+      - stage
+      - progress
+      - created_at
+      - updated_at
+      - expires_at
+      - filename
+      - settings
+      title: JobResponse
+      type: object
+    JobResult:
+      additionalProperties: false
+      properties:
+        width:
+          title: Width
+          type: integer
+        height:
+          title: Height
+          type: integer
+        image_class:
+          $ref: '#/components/schemas/ImageClass'
+        layer_count:
+          minimum: 0
+          title: Layer Count
+          type: integer
+        palette_hex:
+          items:
+            type: string
+          title: Palette Hex
+          type: array
+        quality:
+          $ref: '#/components/schemas/QualityReport'
+        files:
+          items:
+            $ref: '#/components/schemas/JobFile'
+          title: Files
+          type: array
+        warnings:
+          items:
+            type: string
+          title: Warnings
+          type: array
+      required:
+      - width
+      - height
+      - image_class
+      - layer_count
+      - palette_hex
+      - quality
+      - files
+      title: JobResult
+      type: object
+    JobStatus:
+      enum:
+      - queued
+      - running
+      - succeeded
+      - failed
+      title: JobStatus
+      type: string
+    Limits:
+      additionalProperties: false
+      properties:
+        max_upload_bytes:
+          default: 20971520
+          title: Max Upload Bytes
+          type: integer
+        job_ttl_seconds:
+          default: 3600
+          title: Job Ttl Seconds
+          type: integer
+        max_pixels:
+          default: 36000000
+          title: Max Pixels
+          type: integer
+        accepted_media_types:
+          items:
+            type: string
+          title: Accepted Media Types
+          type: array
+      title: Limits
+      type: object
+    LineMode:
+      enum:
+      - outline
+      - centerline
+      title: LineMode
+      type: string
+    MetricCheck:
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/MetricName'
+        value:
+          title: Value
+          type: number
+        threshold:
+          title: Threshold
+          type: number
+        comparator:
+          enum:
+          - <
+          - <=
+          - '>='
+          - '>'
+          title: Comparator
+          type: string
+        passed:
+          title: Passed
+          type: boolean
+      required:
+      - name
+      - value
+      - threshold
+      - comparator
+      - passed
+      title: MetricCheck
+      type: object
+    MetricName:
+      enum:
+      - ssim
+      - max_delta_e
+      - mean_delta_e
+      - gap_ratio
+      - alpha_iou
+      - processing_time_s
+      - svg_valid
+      title: MetricName
+      type: string
+    OutputFormat:
+      enum:
+      - svg
+      - ai
+      - eps
+      - png
+      title: OutputFormat
+      type: string
+    PipelineStage:
+      enum:
+      - upload
+      - preprocess
+      - classify
+      - quantize
+      - extract_lines
+      - vectorize
+      - assemble
+      - export
+      - evaluate
+      - done
+      title: PipelineStage
+      type: string
+    ProcessingMode:
+      enum:
+      - auto
+      - line_art
+      - flat_color
+      - mixed
+      title: ProcessingMode
+      type: string
+    QualityReport:
+      additionalProperties: false
+      description: "Metric definitions:\n\n* ssim: SSIM on grayscale after alpha-compositing source and\
+        \ preview over white,\n  computed at source resolution.\n* mean/max_delta_e: CIEDE2000 between\
+        \ each fill layer's color_hex and the dominant\n  (median in LAB) source color of its palette\
+        \ region; stroke/line layers compare\n  against LineMap-covered pixels. Background layers are\
+        \ included.\n* gap_ratio: render preview.png over transparency; among source pixels with alpha\
+        \ >= 128\n  after a 1-px erosion (so silhouette anti-aliasing is ignored), the fraction whose\
+        \ preview\n  alpha < 128. Detects hairline gaps between color regions.\n* alpha_iou: IoU of (source\
+        \ alpha >= 128) vs (preview alpha >= 128); None if opaque.\n* node_count: total M/L/C segment\
+        \ endpoints over all VectorDocument layers (Z not counted).\n* file_size_bytes: size of the optimized\
+        \ output.svg."
+      properties:
+        ssim:
+          maximum: 1
+          minimum: -1
+          title: Ssim
+          type: number
+        mean_delta_e:
+          minimum: 0
+          title: Mean Delta E
+          type: number
+        max_delta_e:
+          minimum: 0
+          title: Max Delta E
+          type: number
+        gap_ratio:
+          maximum: 1
+          minimum: 0
+          title: Gap Ratio
+          type: number
+        alpha_iou:
+          anyOf:
+          - maximum: 1
+            minimum: 0
+            type: number
+          - type: 'null'
+          default: null
+          title: Alpha Iou
+        node_count:
+          minimum: 0
+          title: Node Count
+          type: integer
+        file_size_bytes:
+          minimum: 0
+          title: File Size Bytes
+          type: integer
+        processing_time_s:
+          minimum: 0
+          title: Processing Time S
+          type: number
+        checks:
+          items:
+            $ref: '#/components/schemas/MetricCheck'
+          title: Checks
+          type: array
+        passed:
+          readOnly: true
+          title: Passed
+          type: boolean
+      required:
+      - ssim
+      - mean_delta_e
+      - max_delta_e
+      - gap_ratio
+      - node_count
+      - file_size_bytes
+      - processing_time_s
+      - checks
+      - passed
+      title: QualityReport
+      type: object
+    RerunRequest:
+      additionalProperties: false
+      description: Re-run a finished job's upload with new settings (e.g. an edited palette_override).
+      properties:
+        settings:
+          $ref: '#/components/schemas/Settings'
+      required:
+      - settings
+      title: RerunRequest
+      type: object
+    Settings:
+      additionalProperties: false
+      description: User-controllable conversion settings (API body + UI form).
+      properties:
+        mode:
+          $ref: '#/components/schemas/ProcessingMode'
+          default: auto
+        max_colors:
+          anyOf:
+          - maximum: 64
+            minimum: 2
+            type: integer
+          - type: 'null'
+          default: null
+          description: None = auto-detect.
+          title: Max Colors
+        detail_level:
+          $ref: '#/components/schemas/DetailLevel'
+          default: medium
+        line_mode:
+          $ref: '#/components/schemas/LineMode'
+          default: outline
+        smoothing:
+          default: 50
+          description: 0 = polygonal, 100 = maximally smooth curves.
+          maximum: 100
+          minimum: 0
+          title: Smoothing
+          type: integer
+        remove_background:
+          default: false
+          description: Preprocess makes the detected background transparent (PreprocessResult.background_removed).
+          title: Remove Background
+          type: boolean
+        palette_override:
+          anyOf:
+          - items:
+              type: string
+            maxItems: 64
+            minItems: 1
+            type: array
+          - type: 'null'
+          default: null
+          description: User-edited palette for a re-run (UI edit/merge). When set, quantize assigns every
+            opaque pixel to the nearest of these colors in LAB and skips auto-detection; max_colors is
+            ignored.
+          title: Palette Override
+        output_formats:
+          items:
+            $ref: '#/components/schemas/OutputFormat'
+          title: Output Formats
+          type: array
+      title: Settings
+      type: object
