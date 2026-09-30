@@ -306,6 +306,10 @@ class PreprocessResult(_Contract):
     background_removed: bool = Field(
         default=False, description="True if remove_background made background pixels alpha=0."
     )
+    background_lab: LAB | None = Field(
+        default=None,
+        description="CIELAB of the detected border background color (whether or not it was removed); None if none.",
+    )
     scale_factor: float = Field(gt=0, description="processing_size / source_size.")
     denoise: DenoiseParams
 
@@ -543,6 +547,8 @@ class QualityThresholds:
 
     MAX_DELTA_E: float = 3.0
     MAX_MEAN_DELTA_E: float = 2.0
+    MIN_ALPHA_IOU: float = 0.98
+    """Only checked when the source has alpha."""
     MAX_GAP_RATIO: float = 0.0005
     """Fraction of interior source-opaque pixels that render transparent in preview.png."""
     SSIM_MIN: dict[ImageClassLabel, float] = {
@@ -598,8 +604,11 @@ class QualityReport(_Contract):
     * ssim: SSIM on grayscale after alpha-compositing source and preview over white,
       computed at source resolution.
     * mean/max_delta_e: CIEDE2000 between each fill layer's color_hex and the dominant
-      (median in LAB) source color of its palette region; stroke/line layers compare
-      against LineMap-covered pixels. Background layers are included.
+      (median in LAB) color of its palette region, where the region's pixels are taken from the
+      ORIGINAL source image resampled nearest-neighbour onto the processing grid (not pre.image,
+      so preprocessing color shifts are caught). Line layers compare against LineMap-covered
+      pixels when a LineMap exists. A palette region holding >= 0.5% of opaque pixels that no
+      layer represents is scored with the color preview.png renders there. Background layers count.
     * gap_ratio: render preview.png over transparency; among source pixels with alpha >= 128
       after a 1-px erosion (so silhouette anti-aliasing is ignored), the fraction whose preview
       alpha < 128. Detects hairline gaps between color regions.

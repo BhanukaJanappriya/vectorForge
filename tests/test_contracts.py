@@ -294,6 +294,7 @@ def test_thresholds() -> None:
     assert QualityThresholds.SSIM_MIN[ImageClassLabel.FLAT_COLOR] == 0.90
     assert QualityThresholds.SSIM_MIN[ImageClassLabel.LINE_ART] == 0.85
     assert QualityThresholds.MAX_MEAN_DELTA_E == 2.0 and QualityThresholds.MAX_DELTA_E == 3.0
+    assert QualityThresholds.MIN_ALPHA_IOU == 0.98
     assert QualityThresholds.time_budget_s(2000, 2000) == 10.0
     assert QualityThresholds.time_budget_s(10, 10) == 2.0
 
