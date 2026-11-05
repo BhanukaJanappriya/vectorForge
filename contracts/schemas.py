@@ -165,6 +165,9 @@ class ImageMode(StrEnum):
 class SourceFormat(StrEnum):
     PNG = "png"
     JPEG = "jpeg"
+    WEBP = "webp"
+    BMP = "bmp"
+    TIFF = "tiff"
 
 
 class ProcessingMode(StrEnum):

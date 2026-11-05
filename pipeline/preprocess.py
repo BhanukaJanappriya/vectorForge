@@ -1,7 +1,9 @@
 """Stage 0/1: image loading, validation and preprocessing.
 
 ``load_image`` validates an uploaded file (magic bytes, pixel count, decodability) and
-describes it. ``preprocess`` decodes it to sRGB, splits alpha, removes JPEG artifacts with an
+describes it. Supported inputs are PNG, JPEG, WEBP, BMP and TIFF. Multi-frame files (animated
+WEBP, multi-page TIFF, MPO) are converted from their first frame only; later frames are ignored.
+``preprocess`` decodes it to sRGB, splits alpha, removes JPEG artifacts with an
 edge-preserving (iterated bilateral) filter, optionally removes a uniform border-connected
 background, and rescales into *processing space* (see ``contracts/schemas.py``).
 
@@ -42,6 +44,19 @@ from contracts.schemas import (
 
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 JPEG_MAGIC = b"\xff\xd8\xff"
+BMP_MAGIC = b"BM"
+TIFF_MAGICS = (b"II*\x00", b"MM\x00*")
+SNIFF_BYTES = 16
+"""Header bytes needed to identify every supported format."""
+SUPPORTED_DESCRIPTION = "PNG, JPEG, WEBP, BMP or TIFF"
+_PIL_FORMATS: dict[SourceFormat, frozenset[str]] = {
+    SourceFormat.PNG: frozenset({"PNG"}),
+    SourceFormat.JPEG: frozenset({"JPEG", "MPO"}),
+    SourceFormat.WEBP: frozenset({"WEBP"}),
+    SourceFormat.BMP: frozenset({"BMP"}),
+    SourceFormat.TIFF: frozenset({"TIFF"}),
+}
+"""Pillow ``Image.format`` values that may follow each magic-byte signature."""
 
 MAX_LONG_SIDE = 2048
 """Processing-space long side cap (time budget)."""
@@ -124,6 +139,12 @@ def sniff_format(header: bytes) -> SourceFormat | None:
         return SourceFormat.PNG
     if header.startswith(JPEG_MAGIC):
         return SourceFormat.JPEG
+    if header[:4] == b"RIFF" and header[8:12] == b"WEBP":
+        return SourceFormat.WEBP
+    if header.startswith(BMP_MAGIC):
+        return SourceFormat.BMP
+    if header.startswith(TIFF_MAGICS):
+        return SourceFormat.TIFF
     return None
 
 
@@ -200,16 +221,16 @@ def decode_image(path: Path) -> DecodedImage:
     path = Path(path)
     try:
         with path.open("rb") as fh:
-            header = fh.read(16)
+            header = fh.read(SNIFF_BYTES)
     except OSError as exc:
         raise InvalidImageError(f"cannot read {path.name}: {exc}") from exc
     fmt = sniff_format(header)
     if fmt is None:
-        raise InvalidImageError(f"{path.name}: not a PNG or JPEG file (magic bytes {header[:8].hex()})")
+        raise InvalidImageError(f"{path.name}: not a {SUPPORTED_DESCRIPTION} file (magic bytes {header[:8].hex()})")
     try:
         with Image.open(path) as img:
-            if img.format not in ("PNG", "JPEG", "MPO"):
-                raise InvalidImageError(f"{path.name}: decoded as {img.format}, expected PNG/JPEG")
+            if img.format not in _PIL_FORMATS[fmt]:
+                raise InvalidImageError(f"{path.name}: content is {img.format}, not the {fmt.value} its header claims")
             width, height = img.size
             if width <= 0 or height <= 0:
                 raise InvalidImageError(f"{path.name}: empty image")
@@ -309,9 +330,7 @@ def iterated_bilateral(rgb: np.ndarray, iterations: int, sigma_color: float) -> 
     return out
 
 
-def _denoise(
-    rgb: np.ndarray, fmt: SourceFormat, detail: DetailLevel
-) -> tuple[np.ndarray, DenoiseParams]:
+def _denoise(rgb: np.ndarray, fmt: SourceFormat, detail: DetailLevel) -> tuple[np.ndarray, DenoiseParams]:
     """Pick and apply a denoiser; return the result and a record of what was done."""
     noise = estimate_noise(rgb)
     base_extra = {"noise_sigma": round(noise, 4)}

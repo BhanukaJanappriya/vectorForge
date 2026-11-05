@@ -23,8 +23,23 @@ from contracts.api import PipelineStage
 
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 JPEG_MAGIC = b"\xff\xd8\xff"
-EXTENSIONS = {"image/png": ".png", "image/jpeg": ".jpg"}
-PIL_FORMATS = {"image/png": "PNG", "image/jpeg": "JPEG"}
+BMP_MAGIC = b"BM"
+TIFF_MAGICS = (b"II*\x00", b"MM\x00*")
+SNIFF_BYTES = 16
+EXTENSIONS = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/webp": ".webp",
+    "image/bmp": ".bmp",
+    "image/tiff": ".tif",
+}
+PIL_FORMATS = {
+    "image/png": {"PNG"},
+    "image/jpeg": {"JPEG", "MPO"},
+    "image/webp": {"WEBP"},
+    "image/bmp": {"BMP"},
+    "image/tiff": {"TIFF"},
+}
 MAX_FIELD_BYTES = 64 * 1024
 """Limit for non-file form fields (the settings JSON)."""
 MAX_PARTS = 16
@@ -32,11 +47,17 @@ MAX_FILENAME_CHARS = 200
 
 
 def sniff_media_type(head: bytes) -> str | None:
-    """Media type from the first bytes of a file (PNG or JPEG), else None."""
+    """Media type from the first bytes of a file (PNG, JPEG, WEBP, BMP or TIFF), else None."""
     if head.startswith(PNG_MAGIC):
         return "image/png"
     if head.startswith(JPEG_MAGIC):
         return "image/jpeg"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return "image/webp"
+    if head.startswith(BMP_MAGIC):
+        return "image/bmp"
+    if head.startswith(TIFF_MAGICS):
+        return "image/tiff"
     return None
 
 
@@ -196,16 +217,16 @@ async def receive_upload(request: Request, dest: Path, max_bytes: int) -> Parsed
 def check_image(path: Path, max_pixels: int) -> str:
     """Validate an uploaded file by content and return its media type.
 
-    Raises ApiError: 415 if it is not PNG/JPEG by magic bytes, 413 if it has more than
+    Raises ApiError: 415 if it is not PNG, JPEG, WEBP, BMP or TIFF by magic bytes, 413 if it has more than
     ``max_pixels`` pixels, 422 if it cannot be decoded.
     """
     with open(path, "rb") as fh:
-        head = fh.read(len(PNG_MAGIC))
+        head = fh.read(SNIFF_BYTES)
     if not head:
         raise _upload_error(422, "invalid_image", "The uploaded file is empty.")
     media_type = sniff_media_type(head)
     if media_type is None:
-        raise _upload_error(415, "unsupported_media_type", "Only PNG and JPEG images are accepted.")
+        raise _upload_error(415, "unsupported_media_type", "Only PNG, JPEG, WEBP, BMP and TIFF images are accepted.")
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("error", Image.DecompressionBombWarning)
@@ -215,7 +236,7 @@ def check_image(path: Path, max_pixels: int) -> str:
                     raise _upload_error(
                         413, "too_large", f"Image has {width}x{height} pixels; the limit is {max_pixels} pixels."
                     )
-                if img.format != PIL_FORMATS[media_type]:
+                if img.format not in PIL_FORMATS[media_type]:
                     raise _upload_error(422, "invalid_image", "The file content does not match its image signature.")
                 img.verify()
     except ApiError:

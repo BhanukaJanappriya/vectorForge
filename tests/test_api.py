@@ -349,7 +349,7 @@ def test_config(app_factory: Any) -> None:
         "max_upload_bytes": 12345,
         "job_ttl_seconds": 99,
         "max_pixels": 36_000_000,
-        "accepted_media_types": ["image/png", "image/jpeg"],
+        "accepted_media_types": ["image/png", "image/jpeg", "image/webp", "image/bmp", "image/tiff"],
     }
 
 
@@ -943,3 +943,57 @@ def test_all_samples_upload_poll_download(client: TestClient, sample: str) -> No
     assert body["status"] == "succeeded"
     for f in body["result"]["files"]:
         assert client.get(f["url"]).status_code == 200
+
+
+# --------------------------------------------------------------------------------------
+# WEBP, BMP and TIFF uploads
+# --------------------------------------------------------------------------------------
+
+
+def _encoded(fmt: str, size: tuple[int, int] = (40, 30), **kw: Any) -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", size, (10, 120, 200)).save(buf, fmt, **kw)
+    return buf.getvalue()
+
+
+@pytest.mark.parametrize(
+    ("fmt", "media_type", "suffix", "kw"),
+    [
+        ("WEBP", "image/webp", ".webp", {"lossless": True}),
+        ("BMP", "image/bmp", ".bmp", {}),
+        ("TIFF", "image/tiff", ".tif", {}),
+    ],
+)
+def test_convert_new_formats(client: TestClient, fmt: str, media_type: str, suffix: str, kw: dict[str, Any]) -> None:
+    resp = convert(client, _encoded(fmt, **kw), filename="photo.png")  # extension is ignored
+    assert resp.status_code == 202, resp.text
+    body = wait_for(client, resp.json()["job_id"])
+    assert body["status"] == "succeeded"
+    original = {f["kind"]: f for f in body["result"]["files"]}["original"]
+    assert original["media_type"] == media_type
+    download = client.get(original["url"], params={"download": 1})
+    assert download.headers["content-type"] == media_type
+    assert f'filename="photo{suffix}"' in download.headers["content-disposition"]
+
+
+def test_config_lists_new_formats(client: TestClient) -> None:
+    types = client.get(f"{API_PREFIX}/config").json()["limits"]["accepted_media_types"]
+    assert types == ["image/png", "image/jpeg", "image/webp", "image/bmp", "image/tiff"]
+
+
+@pytest.mark.parametrize(
+    "content",
+    [b"BM not really a bitmap", b"RIFF\x10\x00\x00\x00WEBP" + b"\0" * 40, b"II*\x00" + b"\0" * 40],
+)
+def test_422_for_new_format_signatures_without_valid_content(client: TestClient, content: bytes) -> None:
+    assert_error(convert(client, content, filename="image.webp"), 422, "invalid_image")
+    assert _jobs_on_disk(client) == []
+
+
+def test_413_pixel_limit_applies_to_new_formats(app_factory: Any) -> None:
+    client = app_factory(max_pixels=100)
+    assert_error(convert(client, _encoded("BMP", (20, 20))), 413, "too_large")
+
+
+def test_riff_that_is_not_webp_is_unsupported(client: TestClient) -> None:
+    assert_error(convert(client, b"RIFF\x24\x00\x00\x00WAVEfmt " + b"\0" * 40), 415, "unsupported_media_type")

@@ -15,7 +15,7 @@ from contracts.schemas import SCHEMA_VERSION, ImageClass, QualityReport, Setting
 API_PREFIX = "/api/v1"
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 MAX_PIXELS = 36_000_000
-ACCEPTED_MEDIA_TYPES = ["image/png", "image/jpeg"]
+ACCEPTED_MEDIA_TYPES = ["image/png", "image/jpeg", "image/webp", "image/bmp", "image/tiff"]
 JOB_TTL_SECONDS = 3600
 """Job files (upload + outputs) are deleted this long after the job finishes."""
 

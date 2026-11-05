@@ -578,8 +578,13 @@ def test_source_has_alpha_corrected_when_inconsistent(tmp_path: Path) -> None:
 def test_size_mismatch_raises_stage_error(tmp_path: Path) -> None:
     path = _save(_logo((64, 64)), tmp_path / "x.png")
     bad = ImageInput(
-        path=path, width=10, height=10, has_alpha=False, mode=ImageMode.RGB,
-        source_format=SourceFormat.PNG, file_size_bytes=10,
+        path=path,
+        width=10,
+        height=10,
+        has_alpha=False,
+        mode=ImageMode.RGB,
+        source_format=SourceFormat.PNG,
+        file_size_bytes=10,
     )
     with pytest.raises(StageError):
         preprocess(bad, Settings())
@@ -607,7 +612,10 @@ def test_preprocess_large_sample_time_budget() -> None:
     root = Path(__file__).resolve().parents[1]
     out = subprocess.run(
         [sys.executable, "-c", _TIMING_SCRIPT, str(SAMPLES / "09_large_2000.png")],
-        cwd=root, capture_output=True, text=True, check=True,
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
     )
     best = min(json.loads(out.stdout.strip().splitlines()[-1]))
     assert best <= 1.5, best
@@ -679,3 +687,123 @@ def test_upscale_is_exact_pixel_duplication(tmp_path: Path) -> None:
     assert pre.denoise.method == "none"
     np.testing.assert_array_equal(pre.alpha, dup[..., 3])
     np.testing.assert_array_equal(pre.image, dup[..., :3])
+
+
+# --------------------------------------------------------------------------------------
+# WEBP, BMP and TIFF input
+# --------------------------------------------------------------------------------------
+
+_NEW_FORMATS = [
+    ("WEBP", "webp", SourceFormat.WEBP, {"lossless": True}),
+    ("BMP", "bmp", SourceFormat.BMP, {}),
+    ("TIFF", "tif", SourceFormat.TIFF, {}),
+]
+
+
+def test_sniff_new_formats() -> None:
+    assert sniff_format(b"RIFF\x24\x00\x00\x00WEBPVP8 ") is SourceFormat.WEBP
+    assert sniff_format(b"RIFF\x24\x00\x00\x00WAVEfmt ") is None
+    assert sniff_format(b"BM" + b"\x00" * 14) is SourceFormat.BMP
+    assert sniff_format(b"II*\x00\x08\x00\x00\x00") is SourceFormat.TIFF
+    assert sniff_format(b"MM\x00*\x00\x00\x00\x08") is SourceFormat.TIFF
+
+
+@pytest.mark.parametrize(("pil", "ext", "fmt", "kw"), _NEW_FORMATS)
+def test_new_formats_load_and_preprocess(tmp_path: Path, pil: str, ext: str, fmt: SourceFormat, kw: dict) -> None:
+    # extension deliberately wrong: detection must come from the bytes
+    path = _save(_logo((120, 90)), tmp_path / "picture.png", pil, **kw)
+    info = load_image(path)
+    assert info.source_format is fmt
+    assert (info.width, info.height) == (120, 90)
+    assert not info.has_alpha
+    result = preprocess(info, Settings())
+    assert result.image.shape[2] == 3 and result.image.shape[0] >= 90
+
+
+@pytest.mark.parametrize(("pil", "kw"), [("WEBP", {"lossless": True}), ("TIFF", {})])
+def test_new_formats_keep_alpha(tmp_path: Path, pil: str, kw: dict) -> None:
+    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    img.paste(Image.new("RGBA", (32, 32), (220, 30, 30, 255)), (16, 16))
+    info = load_image(_save(img, tmp_path / f"a.{pil.lower()}", pil, **kw))
+    assert info.has_alpha and info.mode is ImageMode.RGBA
+    result = preprocess(info, Settings(remove_background=False))
+    assert result.alpha is not None and result.alpha.min() == 0 and result.alpha.max() == 255
+
+
+def test_sixteen_bit_and_cmyk_tiff(tmp_path: Path) -> None:
+    gray16 = Image.fromarray((np.arange(64 * 64, dtype=np.uint16).reshape(64, 64) * 15).astype(np.uint16))
+    info = load_image(_save(gray16, tmp_path / "g16.tif", "TIFF"))
+    assert info.mode is ImageMode.L
+    decoded = pp.decode_image(tmp_path / "g16.tif")
+    assert decoded.rgb.dtype == np.uint8 and decoded.rgb.max() > 200
+    cmyk = Image.new("CMYK", (32, 32), (0, 255, 255, 0))
+    assert load_image(_save(cmyk, tmp_path / "c.tif", "TIFF")).mode is ImageMode.CMYK
+
+
+def test_animated_webp_uses_first_frame_only(tmp_path: Path) -> None:
+    red, green, blue = (Image.new("RGB", (40, 30), c) for c in ((255, 0, 0), (0, 255, 0), (0, 0, 255)))
+    path = tmp_path / "anim.webp"
+    red.save(path, "WEBP", save_all=True, append_images=[green, blue], lossless=True, duration=100)
+    assert Image.open(path).n_frames == 3
+    decoded = pp.decode_image(path)
+    assert decoded.source_format is SourceFormat.WEBP
+    assert tuple(decoded.rgb[0, 0]) == (255, 0, 0)
+
+
+def test_multipage_tiff_uses_first_page_only(tmp_path: Path) -> None:
+    first, second = Image.new("RGB", (50, 20), (0, 200, 0)), Image.new("RGB", (80, 80), (9, 9, 9))
+    path = tmp_path / "multi.tif"
+    first.save(path, "TIFF", save_all=True, append_images=[second])
+    info = load_image(path)
+    assert (info.width, info.height) == (50, 20)
+    assert tuple(pp.decode_image(path).rgb[0, 0]) == (0, 200, 0)
+
+
+def test_webp_exif_orientation_applied(tmp_path: Path) -> None:
+    exif = Image.Exif()
+    exif[0x0112] = 6
+    path = _save(Image.new("RGB", (60, 20), (1, 2, 3)), tmp_path / "rot.webp", "WEBP", lossless=True, exif=exif)
+    info = load_image(path)
+    assert (info.width, info.height) == (20, 60)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"RIFF\x10\x00\x00\x00WEBP" + b"\x00" * 64,
+        b"BM" + b"\x00" * 100,
+        b"II*\x00" + b"\x00" * 100,
+        b"MM\x00*" + b"\xff" * 100,
+        b"BM is the start of a text file, not an image",
+    ],
+)
+@pytest.mark.filterwarnings("ignore:Corrupt EXIF")
+def test_corrupt_new_format_files_rejected(tmp_path: Path, payload: bytes) -> None:
+    path = tmp_path / "bad.bin"
+    path.write_bytes(payload)
+    with pytest.raises(InvalidImageError):
+        load_image(path)
+
+
+def test_truncated_tiff_rejected(tmp_path: Path) -> None:
+    path = _save(_logo((200, 200)), tmp_path / "t.tif", "TIFF")
+    path.write_bytes(path.read_bytes()[:-5000])
+    with pytest.raises(InvalidImageError):
+        load_image(path)
+
+
+def test_header_must_match_decoded_format(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    path = _save(_logo((16, 16)), tmp_path / "x.bmp", "BMP")
+    monkeypatch.setattr(pp, "_PIL_FORMATS", {**pp._PIL_FORMATS, SourceFormat.BMP: frozenset({"PNG"})})
+    with pytest.raises(InvalidImageError, match="header claims"):
+        pp.decode_image(path)
+
+
+@pytest.mark.parametrize(("pil", "ext", "fmt", "kw"), _NEW_FORMATS)
+def test_pixel_limit_applies_to_new_formats(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pil: str, ext: str, fmt: SourceFormat, kw: dict
+) -> None:
+    path = _save(_logo((40, 40)), tmp_path / f"big.{ext}", pil, **kw)
+    monkeypatch.setattr(pp, "MAX_PIXELS", 100)
+    with pytest.raises(InvalidImageError, match="pixel limit"):
+        load_image(path)

@@ -43,7 +43,7 @@ paths:
                 file:
                   type: string
                   format: binary
-                  description: PNG or JPEG, <= 20971520 bytes
+                  description: PNG, JPEG, WEBP, BMP or TIFF, <= 20971520 bytes
                 settings:
                   type: string
                   contentMediaType: application/json

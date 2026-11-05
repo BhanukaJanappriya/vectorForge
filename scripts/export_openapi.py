@@ -93,7 +93,7 @@ def build_spec() -> dict[str, Any]:
                                     "file": {
                                         "type": "string",
                                         "format": "binary",
-                                        "description": f"PNG or JPEG, <= {MAX_UPLOAD_BYTES} bytes",
+                                        "description": f"PNG, JPEG, WEBP, BMP or TIFF, <= {MAX_UPLOAD_BYTES} bytes",
                                     },
                                     "settings": {
                                         "type": "string",

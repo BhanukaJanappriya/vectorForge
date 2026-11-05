@@ -249,7 +249,7 @@ def create_app(config: AppConfig | None = None, stages: Mapping[str, StageFn] | 
                                 "file": {
                                     "type": "string",
                                     "format": "binary",
-                                    "description": f"PNG or JPEG, <= {MAX_UPLOAD_BYTES} bytes",
+                                    "description": f"PNG, JPEG, WEBP, BMP or TIFF, <= {MAX_UPLOAD_BYTES} bytes",
                                 },
                                 "settings": {
                                     "type": "string",

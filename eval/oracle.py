@@ -56,10 +56,20 @@ AUTO_COLORS = 16
 # --------------------------------------------------------------------------------------
 
 
+_PIL_TO_SOURCE: dict[str, SourceFormat] = {
+    "png": SourceFormat.PNG,
+    "jpeg": SourceFormat.JPEG,
+    "mpo": SourceFormat.JPEG,
+    "webp": SourceFormat.WEBP,
+    "bmp": SourceFormat.BMP,
+    "tiff": SourceFormat.TIFF,
+}
+
+
 def oracle_load_image(path: Path) -> ImageInput:
     """Describe an image file with Pillow (no validation beyond decodability)."""
     with Image.open(path) as img:
-        fmt = SourceFormat.JPEG if (img.format or "").upper() in {"JPEG", "JPG"} else SourceFormat.PNG
+        fmt = _PIL_TO_SOURCE.get((img.format or "").lower(), SourceFormat.PNG)
         mode = ImageMode(img.mode) if img.mode in ImageMode.__members__.values() else ImageMode.RGB
         has_alpha = False
         if "A" in img.getbands() or "transparency" in img.info:

@@ -1,10 +1,24 @@
 # VectorForge
 
-Convert raster images (PNG/JPG) into clean, layered vector graphics: **SVG**, **.ai**, optional
+Convert raster images (PNG, JPG, WEBP, BMP, TIFF) into clean, layered vector graphics: **SVG**, **.ai**, optional
 **EPS**, and a **PNG preview**, with a quality report (SSIM, CIEDE2000, gap ratio, node count).
 
 > **About .ai:** native Adobe Illustrator files are proprietary. `output.ai` is an Illustrator-compatible
 > **PDF** saved with the `.ai` extension, with one named layer per color. Illustrator and Inkscape open it directly.
+
+## Supported input formats
+
+| Format | Notes |
+|---|---|
+| PNG, JPEG | Full support, including alpha (PNG), EXIF orientation and ICC profiles. |
+| WEBP | Lossy and lossless, with alpha. |
+| BMP | Opaque only: Pillow ignores the alpha channel of a BMP, so transparency in a BMP is not preserved. |
+| TIFF | Gray, RGB, RGBA, CMYK and 16 bit data. Accepted by the API; the web UI does not offer it because browsers cannot preview TIFF. |
+
+The format is detected from the file's bytes, never from its extension or the client's MIME type, and the
+decoded content must match the signature. Pixel count (`MAX_PIXELS`) and upload size limits apply to every
+format. **Frame policy:** only the first frame is used. Animated WEBP, multi-page TIFF and multi-picture
+JPEG are converted from frame or page 1 and the rest is ignored.
 
 ## Project status
 

@@ -1,7 +1,7 @@
 # VectorForge — Project Rules
 
 ## Goal
-Convert PNG/JPG into clean vectors: output.svg, output.ai (PDF-compatible),
+Convert PNG/JPG/WEBP/BMP/TIFF into clean vectors: output.svg, output.ai (PDF-compatible),
 output.eps, preview.png. Auto-detect line art / flat color / mixed.
 
 ## Quality thresholds (must pass)
