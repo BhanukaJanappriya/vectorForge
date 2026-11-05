@@ -29,6 +29,7 @@ def _worker(sample: Path) -> dict[str, Any]:
     """Run the full pipeline once in this process and return its measurements."""
     sys.path.insert(0, str(ROOT))
     from contracts.schemas import Settings  # noqa: PLC0415
+    from eval.eps_validate import validate_eps  # noqa: PLC0415
     from eval.raster import document_node_count  # noqa: PLC0415
     from pipeline.runner import run_pipeline  # noqa: PLC0415
 
@@ -40,8 +41,23 @@ def _worker(sample: Path) -> dict[str, Any]:
             for name, path in (("svg", bundle.svg_path), ("eps", bundle.eps_path), ("ai", bundle.ai_path))
             if path is not None
         }
+        eps_report = (
+            validate_eps(
+                bundle.eps_path,
+                expected_size=(result.doc.width, result.doc.height),
+                source_has_alpha=result.image.has_alpha,
+                reference_path=sample,
+            )
+            if bundle.eps_path is not None
+            else None
+        )
         return {
             "sample": sample.stem,
+            "eps_passed": None if eps_report is None else eps_report.passed,
+            "eps_render_ssim": None if eps_report is None else eps_report.render_ssim,
+            "eps_issues": []
+            if eps_report is None
+            else [f"{c.name}:{c.status}" for c in eps_report.checks if c.status in ("warn", "fail")],
             "elapsed_s": result.elapsed_s,
             "processing_time_s": result.processing_time_s,
             "stages_s": result.timings,
@@ -91,9 +107,24 @@ def _summarise(runs: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _fmt(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.4f}"
+
+
+def _eps_cell(row: dict[str, Any]) -> str:
+    if row["eps_passed"] is None:
+        return "no EPS"
+    return ("pass" if row["eps_passed"] else "FAIL") + (
+        f" ({', '.join(row['eps_issues'])})" if row["eps_issues"] else ""
+    )
+
+
 def _table(rows: list[dict[str, Any]]) -> str:
-    head = "| Sample | Time s | Peak MB | Nodes | EPS KB | SVG KB | SSIM | Mean dE | Max dE | Gap | Slowest stages |"
-    lines = [head, "|" + "|".join(["---"] + ["---:"] * 9 + ["---"]) + "|"]
+    head = (
+        "| Sample | Time s | Peak MB | Nodes | EPS KB | SVG KB | SSIM | Mean dE | Max dE | Gap "
+        "| EPS check | EPS SSIM | Slowest stages |"
+    )
+    lines = [head, "|" + "|".join(["---"] + ["---:"] * 9 + ["---", "---:", "---"]) + "|"]
     for r in rows:
         slow = sorted(r["stages_s"].items(), key=lambda kv: kv[1], reverse=True)[:2]
         eps = r["sizes_bytes"].get("eps")
@@ -101,6 +132,7 @@ def _table(rows: list[dict[str, Any]]) -> str:
             f"| {r['sample']} | {r['elapsed_s']:.2f} | {r['peak_rss_mb']:.0f} | {r['nodes']} "
             f"| {eps / 1024:.1f} | {r['sizes_bytes']['svg'] / 1024:.1f} | {r['ssim']:.4f} "
             f"| {r['mean_delta_e']:.2f} | {r['max_delta_e']:.2f} | {r['gap_ratio']:.5f} "
+            f"| {_eps_cell(r)} | {_fmt(r['eps_render_ssim'])} "
             f"| {', '.join(f'{k} {v:.2f}' for k, v in slow)} |"
             if eps is not None
             else f"| {r['sample']} | {r['elapsed_s']:.2f} | EPS missing |"
@@ -111,7 +143,7 @@ def _table(rows: list[dict[str, Any]]) -> str:
         f"| {sum(r['nodes'] for r in rows) / n:.0f} "
         f"| {sum(r['sizes_bytes'].get('eps', 0) for r in rows) / n / 1024:.1f} "
         f"| {sum(r['sizes_bytes']['svg'] for r in rows) / n / 1024:.1f} "
-        f"| {sum(r['ssim'] for r in rows) / n:.4f} | | | | |"
+        f"| {sum(r['ssim'] for r in rows) / n:.4f} | | | | | | |"
     )
     return "\n".join(lines)
 

@@ -4,6 +4,7 @@
     python -m eval run 01_logo_4color     # one sample (stem, file name or numeric prefix)
     python -m eval run --all --oracle     # ignore pipeline stages, oracle stubs only
     python -m eval list                   # list samples
+    python -m eval eps out/output.eps --size 512x512 --reference in.png   # validate an EPS file
 
 Prints the results table, the stage status table, the ground-truth comparison and the
 corrupted-variant self-check, and writes eval/reports/<timestamp>/{report.html,results.json}.
@@ -38,6 +39,12 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--oracle", action="store_true", help="use oracle stubs for every stage")
     run.add_argument("--no-corruptions", action="store_true", help="skip the corrupted-variant self-check")
     run.add_argument("--strict", action="store_true", help="exit 1 if any sample or self-check fails")
+    eps = sub.add_parser("eps", help="validate an EPS file (structure, vector content, Ghostscript render)")
+    eps.add_argument("file", type=Path, help="EPS file to validate")
+    eps.add_argument("--size", help="source canvas WxH in px (enables the canvas size check)")
+    eps.add_argument("--alpha", action="store_true", help="source has transparency (warn on an opaque background fill)")
+    eps.add_argument("--reference", type=Path, help="source image for the render similarity check")
+    eps.add_argument("--no-render", action="store_true", help="skip the Ghostscript render")
     ls = sub.add_parser("list", help="list samples")
     ls.add_argument("--samples", type=Path, default=DEFAULT_SAMPLES)
     return parser
@@ -93,8 +100,28 @@ def _run(args: argparse.Namespace) -> int:
     return 1 if (args.strict and failed) else 0
 
 
+def _eps(args: argparse.Namespace) -> int:
+    from eval.eps_validate import format_report, validate_eps  # noqa: PLC0415
+
+    if not args.file.is_file():
+        print(f"error: {args.file} not found", file=sys.stderr)
+        return 1
+    size = tuple(int(v) for v in args.size.lower().split("x")) if args.size else None
+    report = validate_eps(
+        args.file,
+        expected_size=size,  # type: ignore[arg-type]
+        source_has_alpha=args.alpha,
+        reference_path=args.reference,
+        render=not args.no_render,
+    )
+    print(format_report(report))
+    return 0 if report.passed else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "eps":
+        return _eps(args)
     if args.command == "list":
         for p in list_samples(args.samples):
             print(p.stem)
