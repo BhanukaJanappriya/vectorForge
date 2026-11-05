@@ -6,12 +6,22 @@ const EXTENSION_TYPES: Record<string, string> = {
   png: 'image/png',
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  bmp: 'image/bmp',
+  tif: 'image/tiff',
+  tiff: 'image/tiff',
 };
+
+/**
+ * Types the browser can draw in an <img>. The API also accepts TIFF, but the picker leaves it out because
+ * the original-vs-vector comparison could not show the uploaded image.
+ */
+const PREVIEWABLE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/bmp']);
 
 export const DEFAULT_ACCEPTED_TYPES = ['image/png', 'image/jpeg'];
 
 export function acceptedTypes(limits: Limits): string[] {
-  return limits.accepted_media_types ?? DEFAULT_ACCEPTED_TYPES;
+  return (limits.accepted_media_types ?? DEFAULT_ACCEPTED_TYPES).filter((type) => PREVIEWABLE_TYPES.has(type));
 }
 
 /** MIME type of a File, inferred from the extension when the browser leaves it empty. */
@@ -32,7 +42,7 @@ export function acceptAttribute(limits: Limits): string {
 
 export function describeAccepted(limits: Limits): string {
   const names = acceptedTypes(limits).map((t) => t.replace('image/', '').toUpperCase().replace('JPEG', 'JPG'));
-  return names.join(' or ');
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}` : names.join('');
 }
 
 /** Returns a user-facing error message, or null if the file is acceptable. */

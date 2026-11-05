@@ -482,7 +482,7 @@ export interface operations {
                 "multipart/form-data": {
                     /**
                      * Format: binary
-                     * @description PNG or JPEG, <= 20971520 bytes
+                     * @description PNG, JPEG, WEBP, BMP or TIFF, <= 20971520 bytes
                      */
                     file: string;
                     /** @description JSON-encoded Settings; omitted fields use defaults */

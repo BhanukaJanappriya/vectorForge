@@ -3,7 +3,7 @@ import type { Limits } from '../api/types';
 import { buildPaletteOverride, dedupePalette, luminance, normalizeHex } from './color';
 import { errorTitle } from './errors';
 import { baseName, downloadName, formatBytes, formatMetric } from './format';
-import { acceptAttribute, fileMediaType, validateUpload } from './upload';
+import { acceptAttribute, describeAccepted, fileMediaType, validateUpload } from './upload';
 import { IDENTITY, MAX_SCALE, clampView, panBy, toTransform, zoomAt } from './viewport';
 
 const LIMITS: Limits = {
@@ -107,5 +107,32 @@ describe('viewport', () => {
 
   it('renders a CSS transform', () => {
     expect(toTransform({ scale: 2, x: -0.5, y: -0.25 })).toBe('translate(-50%, -25%) scale(2)');
+  });
+});
+
+describe('upload validation for the extended format list', () => {
+  const ALL = {
+    ...LIMITS,
+    accepted_media_types: ['image/png', 'image/jpeg', 'image/webp', 'image/bmp', 'image/tiff'],
+  };
+
+  it('accepts WEBP and BMP, inferring the type from the extension when the browser gives none', () => {
+    expect(fileMediaType(new File(['x'], 'a.webp'))).toBe('image/webp');
+    expect(validateUpload(new File(['x'], 'a.webp', { type: 'image/webp' }), ALL)).toBeNull();
+    expect(validateUpload(new File(['x'], 'scan.BMP'), ALL)).toBeNull();
+  });
+
+  it('leaves TIFF out of the picker because browsers cannot preview it', () => {
+    expect(fileMediaType(new File(['x'], 'a.tif'))).toBe('image/tiff');
+    expect(validateUpload(new File(['x'], 'a.tif', { type: 'image/tiff' }), ALL)).toContain('not a supported image');
+    expect(acceptAttribute(ALL)).toBe(
+      'image/png,image/jpeg,image/webp,image/bmp,.png,.jpg,.jpeg,.webp,.bmp',
+    );
+  });
+
+  it('lists the accepted formats in plain words', () => {
+    expect(describeAccepted(ALL)).toBe('PNG, JPG, WEBP or BMP');
+    expect(describeAccepted(LIMITS)).toBe('PNG or JPG');
+    expect(describeAccepted({ ...LIMITS, accepted_media_types: ['image/png'] })).toBe('PNG');
   });
 });
