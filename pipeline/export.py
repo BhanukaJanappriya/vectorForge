@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import io
 import logging
+import math
 import os
 import re
 import shutil
@@ -377,8 +378,29 @@ def _export_ai(svg_path: Path, doc: VectorDocument, ai_path: Path) -> list[str]:
 # --------------------------------------------------------------------------------------
 
 
+_BOUNDING_BOX_LINE = re.compile(rb"^(%%(?:Page)?BoundingBox:)[^\r\n]*", re.MULTILINE)
+
+
+def _pin_eps_bounding_box(path: Path, width_pt: float, height_pt: float) -> None:
+    """Rewrite ``%%BoundingBox`` and ``%%PageBoundingBox`` to the full page.
+
+    Cairo's EPS mode writes a tight box around the drawn content, so artwork with transparent
+    margins would import with different dimensions than the source. The box is rounded outwards
+    to whole points as the EPS specification requires.
+    """
+    box = f" 0 0 {math.ceil(width_pt - 1e-6)} {math.ceil(height_pt - 1e-6)}".encode()
+    data = path.read_bytes()
+    pinned, count = _BOUNDING_BOX_LINE.subn(lambda m: m.group(1) + box, data)
+    if count == 0:
+        raise StageError(_STAGE, "pycairo EPS has no %%BoundingBox to pin")
+    path.write_bytes(pinned)
+
+
 def write_cairo_eps(doc: VectorDocument, path: Path) -> None:
     """Write ``doc`` as EPS with pycairo's PostScript surface.
+
+    The BoundingBox is the full page (``doc.width`` x ``doc.height`` px converted to points), never
+    the tight bounds of the drawn paths.
 
     Raises:
         ExportToolUnavailableError: if pycairo is not installed.
@@ -387,7 +409,8 @@ def write_cairo_eps(doc: VectorDocument, path: Path) -> None:
         import cairo  # noqa: PLC0415 - optional: pycairo ships its own Cairo build
     except ImportError as exc:
         raise ExportToolUnavailableError("pycairo unavailable") from exc
-    surface = cairo.PSSurface(str(path), doc.width * PX_TO_PT, doc.height * PX_TO_PT)
+    width_pt, height_pt = doc.width * PX_TO_PT, doc.height * PX_TO_PT
+    surface = cairo.PSSurface(str(path), width_pt, height_pt)
     surface.set_eps(True)
     ctx = cairo.Context(surface)
     ctx.scale(PX_TO_PT, PX_TO_PT)
@@ -419,6 +442,7 @@ def write_cairo_eps(doc: VectorDocument, path: Path) -> None:
             ctx.pop_group_to_source()
             ctx.paint_with_alpha(layer.opacity)
     surface.finish()
+    _pin_eps_bounding_box(path, width_pt, height_pt)
 
 
 def _export_eps(svg_path: Path, doc: VectorDocument, eps_path: Path) -> tuple[Path | None, list[str]]:

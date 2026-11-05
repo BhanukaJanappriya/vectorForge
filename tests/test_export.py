@@ -37,6 +37,7 @@ from pipeline import export as export_mod
 from pipeline.assemble import INKSCAPE_NS, SVG_NS, assemble_svg
 from pipeline.export import (
     PX_TO_PT,
+    _pin_eps_bounding_box,
     export,
     find_inkscape,
     parse_path,
@@ -632,3 +633,34 @@ def test_assemble_plus_export_time_on_real_09(tmp_path: Path, fallbacks: None) -
     elapsed = time.perf_counter() - start
     print(f"\nreal 09: assemble+export {elapsed:.3f} s")
     assert elapsed <= 1.5
+
+
+def _small_artwork_document(width: int = 101, height: int = 61) -> VectorDocument:
+    """A canvas whose only artwork sits in the middle, leaving transparent margins on every side."""
+    doc = make_vector_document()
+    fill = doc.layers[1].model_copy(update={"paths": ["M40 20L60 20L60 40L40 40Z"], "z_order": 0})
+    return doc.model_copy(update={"width": width, "height": height, "layers": [fill]})
+
+
+def test_eps_bounding_box_is_the_full_canvas_not_the_artwork(tmp_path: Path) -> None:
+    doc = _small_artwork_document()
+    path = tmp_path / "x.eps"
+    write_cairo_eps(doc, path)
+    text = path.read_text(encoding="latin-1")
+    # 101 px = 75.75 pt and 61 px = 45.75 pt, rounded outwards to whole points
+    assert "%%BoundingBox: 0 0 76 46\n" in text
+    assert "%%PageBoundingBox: 0 0 76 46\n" in text
+    assert text.count("%%BoundingBox:") == 1
+
+
+def test_eps_bounding_box_exact_for_whole_point_pages(tmp_path: Path) -> None:
+    path = tmp_path / "x.eps"
+    write_cairo_eps(_small_artwork_document(400, 200), path)
+    assert "%%BoundingBox: 0 0 300 150\n" in path.read_text(encoding="latin-1")
+
+
+def test_pin_bounding_box_fails_loudly_when_the_header_is_missing(tmp_path: Path) -> None:
+    path = tmp_path / "x.eps"
+    path.write_text("%!PS-Adobe-3.0 EPSF-3.0\n%%EOF\n")
+    with pytest.raises(StageError, match="BoundingBox"):
+        _pin_eps_bounding_box(path, 10, 10)
